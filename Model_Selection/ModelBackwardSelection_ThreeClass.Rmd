@@ -1,0 +1,237 @@
+---
+title: "Three Class Model - Multinomial Logistic Reg"
+author: "Junhua Yang"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  word_document:
+    fig_height: 4.5
+    fig_width: 6.5
+    highlight: monochrome
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(comment = "  ", prompt=TRUE, warning = FALSE, 
+                      echo=FALSE, message = FALSE, include=FALSE, eval.expr = TRUE)
+options(max.print=5000)
+```
+
+# load data
+```{r}
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+library(tableone)
+library(car)
+library(knitr)
+library(MASS)
+library(reshape2)
+library(rsq)
+library(nnet)
+library(gridExtra)
+library(generalhoslem)
+
+
+df = read.csv("C:/Users/1130j/Desktop/Yale/Data/all_recent_tweets_text_score_8_parsed.csv")
+
+dim(df) #1197
+
+```
+
+# Class Distribution
+```{r, include=TRUE, echo=TRUE}
+table(df$classname) %>% addmargins() #very few awareness
+
+# str(df)
+
+df2 = subset(df, df$classname != 'awareness')
+df2 %>% dim
+
+df2$classname = factor(df2$classname)
+df2$class <- factor(df2$class)
+
+
+df2$threeclass = NA
+df2$threeclass[df2$classname == 'None'] = 0
+df2$threeclass[df2$classname == 'pain'] = 1
+df2$threeclass[df2$classname %in%  c('pleasure', 'addiction')] = 2
+
+
+table(df2$threeclass, df2$classname) %>% addmargins()
+
+```
+
+```{r}
+make.frm <- function(vars){
+  frm <- paste("threeclass ~ ", paste(vars, collapse=" + ")) %>% as.formula
+  return(frm)
+}
+
+```
+
+
+# Define Features
+```{r}
+vars <- c('imaginative', 'netspeak_focus', 'persuasive', 'liberal', 'self_assured', 'body_focus',
+       'trusting', 'organized', 'type_a', 'intellectual', 'cheerful',
+       'disciplined', 'neuroticism', 'cooperative', 'social_skills',
+       'openness', 'aggressive', 'adjustment', 'religion_oriented',
+       'empathetic', 'food_focus', 'generous', 'sexual_focus',
+       'thinking_style', 'friend_focus', 'extraversion', 'agreeableness',
+       'depression', 'ambitious', 'friendly', 'money_oriented', 'independent',
+       'melancholy', 'workhorse', 'reward_bias', 'energetic', 'happiness',
+       'self_conscious', 'assertive', 'insecure', 'leisure_oriented',
+       'impulsive', 'cautious', 'conscientiousness', 'active', 'power_driven',
+       'dutiful', 'genuine', 'adventurous', 'sociable', 'family_oriented',
+       'cold', 'emotionally_aware', 'humble', 'anxious', 'artistic',
+       'stressed', 'health_oriented', 'work_oriented')
+
+set.seed(1234)
+frm0 = make.frm(vars)
+mod0 = multinom(frm0, data=df2)
+mod0 %>% Anova()
+```
+
+# Backward selection using BIC
+```{r}
+BIC_Result = stepAIC(mod0, direction="backward", k=log(nrow(df2))) #k = log(n) refers to BIC
+
+```
+
+```{r, include=TRUE}
+BIC_Result
+
+BIC_Result$anova
+```
+
+
+# Backward selection using AIC
+```{r}
+AIC_Result = stepAIC(mod0, direction="backward", trace=TRUE) 
+```
+
+```{r, include=TRUE}
+AIC_Result
+
+AIC_Result$anova
+
+```
+
+
+
+```{r}
+modBIC = multinom(threeclass ~ netspeak_focus + money_oriented + 
+       workhorse + active + power_driven + health_oriented, data=df2)
+modBIC %>% summary
+
+
+modBIC %>% Anova()
+```
+
+```{r}
+modAIC = multinom(threeclass ~ netspeak_focus + liberal + self_assured + cheerful + 
+    cooperative + aggressive + religion_oriented + sexual_focus + 
+    friend_focus + depression + ambitious + melancholy + workhorse + 
+    self_conscious + leisure_oriented + active + power_driven + 
+    genuine + cold + anxious + health_oriented + work_oriented, data=df2)
+
+modAIC %>% summary
+
+
+modAIC %>% Anova()
+```
+
+
+
+
+# BIC 20 Coefficients
+```{r, include=TRUE, echo=TRUE}
+modBIC20= multinom(threeclass ~ netspeak_focus + money_oriented + workhorse + active + power_driven + 
+                     health_oriented + adjustment + reward_bias + cheerful + leisure_oriented + 
+                     thinking_style + aggressive + organized + self_assured + religion_oriented + 
+                     cautious + impulsive + disciplined + type_a + liberal, data=df2)
+
+modBIC20 %>% summary
+modBIC20 %>% Anova()
+
+```
+
+
+# BIC 25 Coefficients
+```{r, include=TRUE, echo=TRUE}
+modBIC25= multinom(threeclass ~ netspeak_focus + money_oriented + workhorse + active + power_driven + 
+                     health_oriented + adjustment + reward_bias + cheerful + leisure_oriented + 
+                     thinking_style + aggressive + organized + self_assured + religion_oriented + 
+                     cautious + impulsive + disciplined + type_a + liberal + 
+                     melancholy + neuroticism + sexual_focus + food_focus + cold, data=df2)
+
+modBIC25 %>% summary
+modBIC25 %>% Anova()
+
+```
+
+# BIC 30 Coefficients
+```{r, include=TRUE, echo=TRUE}
+modBIC30= multinom(threeclass ~ netspeak_focus + money_oriented + workhorse + active + power_driven + 
+                     health_oriented + adjustment + reward_bias + cheerful + leisure_oriented + 
+                     thinking_style + aggressive + organized + self_assured + religion_oriented + 
+                     cautious + impulsive + disciplined + type_a + liberal + 
+                     melancholy + neuroticism + sexual_focus + food_focus + cold + 
+                     friend_focus + agreeableness + generous + genuine + self_conscious, data=df2)
+
+modBIC30 %>% summary
+modBIC30 %>% Anova()
+
+```
+
+# BIC 40 Coefficients
+```{r, include=TRUE, echo=TRUE}
+modBIC40= multinom(threeclass ~ netspeak_focus + money_oriented + workhorse + active + power_driven +
+                     health_oriented + adjustment + reward_bias + cheerful + leisure_oriented + 
+                     thinking_style + aggressive + organized + self_assured + religion_oriented +
+                     cautious + impulsive + disciplined + type_a + liberal + 
+                     melancholy + neuroticism + sexual_focus + food_focus + cold +
+                     friend_focus + agreeableness + generous  + genuine + self_conscious +
+                     emotionally_aware + artistic + ambitious + adventurous + anxious +
+                     stressed + work_oriented + depression + family_oriented + insecure, data=df2)
+
+modBIC40 %>% summary
+modBIC40 %>% Anova()
+
+```
+
+
+### Report```````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````````
+```{r, include=TRUE, echo=TRUE}
+modBIC40= multinom(threeclass ~ netspeak_focus + money_oriented + workhorse + active + power_driven +
+                     health_oriented + adjustment + reward_bias + cheerful + leisure_oriented + 
+                     thinking_style + aggressive + organized + self_assured + religion_oriented +
+                     cautious + impulsive + disciplined + type_a + liberal + 
+                     melancholy + neuroticism + sexual_focus + food_focus + cold +
+                     friend_focus + agreeableness + generous  + genuine + self_conscious +
+                     emotionally_aware + artistic + ambitious + adventurous + anxious +
+                     stressed + work_oriented + depression + family_oriented + insecure, data=df2)
+
+modBIC40 %>% summary
+modBIC40 %>% Anova()
+
+```
+
+
+# Goodness of fit test for the overall model
+```{r, include=TRUE}
+hoslem.result.BIC <- logitgof(df2$threeclass, fitted(modBIC, outcome=FALSE), ord=FALSE) 
+hoslem.result.BIC 
+
+hoslem.result.AIC <- logitgof(df2$threeclass, fitted(modAIC, outcome=FALSE), ord=FALSE) 
+hoslem.result.AIC 
+
+hoslem.result.AIC2 <- logitgof(df2$threeclass, fitted(modAIC, outcome=FALSE), ord=FALSE) 
+hoslem.result.AIC2 
+```
+
+
+
